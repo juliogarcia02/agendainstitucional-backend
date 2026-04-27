@@ -1,0 +1,42 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# Rider / VS / VS Code
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Test artifacts
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Dotnet local tools/cache
+artifacts/
+
+# Local app settings (do not commit secrets)
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
+
+# SQL / backups / temp
+*.bak
+*.dacpac
+*.dbmdl
+*.mdf
+*.ldf
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

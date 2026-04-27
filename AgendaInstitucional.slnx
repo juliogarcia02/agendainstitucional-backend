@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgendaInstitucional.Api/AgendaInstitucional.Api.csproj" />
+    <Project Path="src/AgendaInstitucional.Application/AgendaInstitucional.Application.csproj" />
+    <Project Path="src/AgendaInstitucional.Domain/AgendaInstitucional.Domain.csproj" />
+    <Project Path="src/AgendaInstitucional.Infrastructure/AgendaInstitucional.Infrastructure.csproj" />
+  </Folder>
+</Solution>
