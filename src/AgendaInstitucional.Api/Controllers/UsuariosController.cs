@@ -10,7 +10,7 @@ using System.Security.Claims;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 [Authorize]
 public class UsuariosController : ControllerBase
 {

@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 [Authorize]
 public class CatTipoEventosController : ControllerBase
 {

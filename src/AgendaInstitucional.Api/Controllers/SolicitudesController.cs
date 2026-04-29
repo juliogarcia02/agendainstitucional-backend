@@ -11,7 +11,7 @@ using System.Linq.Expressions;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 [Authorize]
 public class SolicitudesController : ControllerBase
 {

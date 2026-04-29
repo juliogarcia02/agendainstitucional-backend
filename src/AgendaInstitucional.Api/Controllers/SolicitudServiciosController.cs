@@ -9,7 +9,7 @@ using System.Linq.Expressions;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("api/solicitudes/{solicitudId:int}/servicios")]
+[Route("solicitudes/{solicitudId:int}/servicios")]
 [Authorize]
 public class SolicitudServiciosController : ControllerBase
 {

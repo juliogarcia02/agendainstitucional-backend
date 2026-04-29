@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("api/public/agenda")]
+[Route("public/agenda")]
 [AllowAnonymous]
 public class AgendaPublicaController : ControllerBase
 {

@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 [Authorize]
 public class AuditoriaController : ControllerBase
 {

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("api/azure-users")]
+[Route("azure-users")]
 [Authorize]
 public class AzureUsersController : ControllerBase
 {
