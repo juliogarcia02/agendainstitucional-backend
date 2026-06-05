@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/src/AgendaInstitucional.Api"
-FRONTEND_DIR="$PROJECT_ROOT/frontend"
+FRONTEND_DIR="$PROJECT_ROOT/agendainstitucional-frontend"
 RUN_DIR="$PROJECT_ROOT/.run"
 LOG_DIR="$RUN_DIR/logs"
 PID_BACKEND="$RUN_DIR/backend.pid"
@@ -59,7 +59,7 @@ start_backend() {
   echo "Iniciando API en puerto $API_PORT..."
   (
     cd "$BACKEND_DIR"
-    dotnet run >"$LOG_DIR/backend.log" 2>&1
+    ASPNETCORE_ENVIRONMENT=Development DatabaseTarget=Production dotnet run >"$LOG_DIR/backend.log" 2>&1
   ) &
   echo $! >"$PID_BACKEND"
 
@@ -78,7 +78,7 @@ start_frontend() {
     if [[ ! -d node_modules ]]; then
       npm install
     fi
-    npm run dev >"$LOG_DIR/frontend.log" 2>&1
+    AUTH_SECRET="agenda-local-dev-secret-2026" API_URL_INTERNAL="http://localhost:$API_PORT" NEXT_PUBLIC_API_URL="http://localhost:$API_PORT" npm run dev >"$LOG_DIR/frontend.log" 2>&1
   ) &
   echo $! >"$PID_FRONTEND"
 
