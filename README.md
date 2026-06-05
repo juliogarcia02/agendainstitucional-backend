@@ -53,4 +53,26 @@ API_URL_INTERNAL=http://localhost:5163 NEXT_PUBLIC_API_URL=http://localhost:5163
 
 ## Producción
 
-En producción el backend usa la cadena `DefaultConnection` definida por el entorno/host y el frontend debe apuntar a la URL pública de la API mediante `API_URL_INTERNAL` o `NEXT_PUBLIC_API_URL`.
+El backend usa la cadena `DefaultConnection` definida por el entorno/host.
+
+### Build del frontend (Docker)
+
+Las variables `NEXT_PUBLIC_*` se bakean en el bundle al compilar.
+Deben pasarse como build args al construir la imagen:
+
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_API_URL=https://agenda.congresogto.gob.mx/api \
+  --build-arg AUTH_URL=https://agenda.congresogto.gob.mx \
+  -t agendainstitucional-frontend \
+  agendainstitucional-frontend/
+```
+
+Variables de runtime del contenedor (no necesitan ser build args):
+
+```bash
+docker run \
+  -e AUTH_SECRET=<secret-fuerte> \
+  -e API_URL_INTERNAL=http://<backend-host>:8080 \
+  agendainstitucional-frontend
+```
