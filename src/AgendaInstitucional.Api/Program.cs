@@ -110,6 +110,12 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
         ForwardedHeaders.XForwardedHost
 });
 
+var pathBase = builder.Configuration["PATH_BASE"] ?? builder.Configuration["PathBase"] ?? Environment.GetEnvironmentVariable("PATH_BASE");
+if (!string.IsNullOrWhiteSpace(pathBase))
+{
+    app.UsePathBase(pathBase);
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
