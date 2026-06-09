@@ -1,5 +1,4 @@
 using AgendaInstitucional.Infrastructure.Data;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
@@ -7,19 +6,18 @@ using System.Text.Json.Serialization;
 namespace AgendaInstitucional.Api.Controllers;
 
 [ApiController]
-[Route("public/agenda")]
-[AllowAnonymous]
-public class AgendaPublicaController : ControllerBase
+[Route("internal/agenda")]
+public class AgendaInternaController : ControllerBase
 {
     private readonly AppDbContext _context;
 
-    public AgendaPublicaController(AppDbContext context)
+    public AgendaInternaController(AppDbContext context)
     {
         _context = context;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<AgendaPublicaItemResponse>>> Get(
+    public async Task<ActionResult<IReadOnlyList<AgendaInternaItemResponse>>> Get(
         [FromQuery] DateOnly? fechaDesde = null,
         [FromQuery] DateOnly? fechaHasta = null,
         [FromQuery] bool soloActivos = true,
@@ -43,7 +41,7 @@ public class AgendaPublicaController : ControllerBase
             query = query.Where(x => x.Autorizado);
         }
 
-        query = query.Where(x => !x.EventoInterno);
+        query = query.Where(x => x.EventoInterno);
 
         if (fechaDesde.HasValue)
         {
@@ -77,18 +75,18 @@ public class AgendaPublicaController : ControllerBase
             .ToListAsync(cancellationToken);
 
         var response = data
-            .Select(item => new AgendaPublicaItemResponse
+            .Select(item => new AgendaInternaItemResponse
             {
                 Title = item.Evento,
                 InicioEvento = ToIsoUtcString(item.FechaEvento, item.HoraInicio),
                 FinEvento = ToIsoUtcString(item.FechaEvento, item.HoraFin ?? item.HoraInicio),
                 EventoSinHora = item.SinHoraExactaInicio,
                 DependeDe = item.DependeParaIniciar,
-                Estatus = ResolvePublicStatus(item.Estatus, item.Autorizado),
+                Estatus = ResolveInternalStatus(item.Estatus, item.Autorizado),
                 Asunto = item.Asunto,
                 Sala = string.IsNullOrWhiteSpace(item.Sala)
                     ? null
-                    : new AgendaPublicaSalaResponse { Title = item.Sala },
+                    : new AgendaInternaSalaResponse { Title = item.Sala },
                 Lugar = null,
                 Direccion = null,
                 Municipio = null
@@ -98,7 +96,7 @@ public class AgendaPublicaController : ControllerBase
         return Ok(response);
     }
 
-    private static string ResolvePublicStatus(bool estatus, bool autorizado)
+    private static string ResolveInternalStatus(bool estatus, bool autorizado)
     {
         if (!estatus)
         {
@@ -149,44 +147,44 @@ public class AgendaPublicaController : ControllerBase
     }
 }
 
-public sealed class AgendaPublicaItemResponse
+public record AgendaInternaItemResponse
 {
     [JsonPropertyName("title")]
-    public string Title { get; set; } = string.Empty;
+    public string? Title { get; init; }
 
-    [JsonPropertyName("inicio_x0020_evento")]
-    public string? InicioEvento { get; set; }
+    [JsonPropertyName("inicio_evento")]
+    public string? InicioEvento { get; init; }
 
-    [JsonPropertyName("fin_x0020_evento")]
-    public string? FinEvento { get; set; }
+    [JsonPropertyName("fin_evento")]
+    public string? FinEvento { get; init; }
 
-    [JsonPropertyName("evento_x0020_sin_x0020_hora_x002")]
-    public bool EventoSinHora { get; set; }
+    [JsonPropertyName("evento_sin_hora")]
+    public bool EventoSinHora { get; init; }
 
-    [JsonPropertyName("depende_x0020_de")]
-    public string? DependeDe { get; set; }
+    [JsonPropertyName("depende_de")]
+    public string? DependeDe { get; init; }
 
     [JsonPropertyName("estatus")]
-    public string Estatus { get; set; } = string.Empty;
+    public string? Estatus { get; init; }
 
     [JsonPropertyName("asunto")]
-    public string? Asunto { get; set; }
+    public string? Asunto { get; init; }
 
     [JsonPropertyName("sala")]
-    public AgendaPublicaSalaResponse? Sala { get; set; }
+    public AgendaInternaSalaResponse? Sala { get; init; }
 
     [JsonPropertyName("lugar")]
-    public string? Lugar { get; set; }
+    public string? Lugar { get; init; }
 
     [JsonPropertyName("direccion")]
-    public string? Direccion { get; set; }
+    public string? Direccion { get; init; }
 
     [JsonPropertyName("municipio")]
-    public string? Municipio { get; set; }
+    public string? Municipio { get; init; }
 }
 
-public sealed class AgendaPublicaSalaResponse
+public record AgendaInternaSalaResponse
 {
     [JsonPropertyName("title")]
-    public string Title { get; set; } = string.Empty;
+    public string? Title { get; init; }
 }
