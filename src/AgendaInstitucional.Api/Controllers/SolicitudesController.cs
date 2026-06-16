@@ -1,5 +1,6 @@
 using AgendaInstitucional.Api.Contracts.Solicitudes;
 using AgendaInstitucional.Api.Contracts.Common;
+using AgendaInstitucional.Api.Services;
 using AgendaInstitucional.Infrastructure.Data;
 using AgendaInstitucional.Infrastructure.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -16,10 +17,12 @@ namespace AgendaInstitucional.Api.Controllers;
 public class SolicitudesController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IEmailService _emailService;
 
-    public SolicitudesController(AppDbContext context)
+    public SolicitudesController(AppDbContext context, IEmailService emailService)
     {
         _context = context;
+        _emailService = emailService;
     }
 
     [HttpGet]
@@ -143,6 +146,29 @@ public class SolicitudesController : ControllerBase
         return Ok(solicitud);
     }
 
+    [HttpGet("{id:int}/notificacion-autorizacion-preview")]
+    public async Task<ActionResult<NotificacionAutorizacionPreviewResponse>> GetNotificacionAutorizacionPreview(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var exists = await _context.Solicitudes
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == id, cancellationToken);
+
+        if (!exists)
+        {
+            return NotFound();
+        }
+
+        var destinatarios = await ObtenerDestinatariosNotificacionAutorizacionAsync(id, cancellationToken);
+
+        return Ok(new NotificacionAutorizacionPreviewResponse
+        {
+            SolicitudId = id,
+            Destinatarios = destinatarios
+        });
+    }
+
     [HttpPost("validar-conflicto-diputados")]
     public async Task<ActionResult<ValidarConflictoDiputadosResponse>> ValidarConflictoDiputados(
         ValidarConflictoDiputadosRequest request,
@@ -218,6 +244,9 @@ public class SolicitudesController : ControllerBase
             return NotFound();
         }
 
+        // Guardar el estado anterior de Autorizado
+        var eraAutorizado = solicitud.Autorizado;
+
         var servicioIds = request.ServicioIds
             .Where(x => x > 0)
             .Distinct()
@@ -263,6 +292,12 @@ public class SolicitudesController : ControllerBase
         await ReplaceSolicitudServicios(id, servicioIds, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        // Enviar correo si se acaba de autorizar
+        if (!eraAutorizado && request.Autorizado)
+        {
+            await EnviarNotificacionAutorizacion(solicitud, cancellationToken);
+        }
 
         var response = await GetSolicitudResponseById(solicitud.Id, cancellationToken);
         return Ok(response);
@@ -362,6 +397,121 @@ public class SolicitudesController : ControllerBase
         {
             _context.SolicitudServicios.AddRange(itemsToAdd);
         }
+    }
+
+    private async Task EnviarNotificacionAutorizacion(Solicitude solicitud, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var destinatariosUnicos = await ObtenerDestinatariosNotificacionAutorizacionAsync(
+                solicitud.Id,
+                cancellationToken);
+
+            if (!destinatariosUnicos.Any())
+            {
+                return; // No hay destinatarios, salir silenciosamente
+            }
+
+            // Obtener los nombres de los servicios solicitados
+            var serviciosNombres = await _context.SolicitudServicios
+                .AsNoTracking()
+                .Where(ss => ss.SolicitudId == solicitud.Id)
+                .Select(ss => ss.Servicio.servicio)
+                .ToListAsync(cancellationToken);
+
+            var serviciosNombresValidos = serviciosNombres
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s!)
+                .ToList();
+
+            var detalleCorreo = await _context.Solicitudes
+                .AsNoTracking()
+                .Where(s => s.Id == solicitud.Id)
+                .Select(s => new EmailSolicitudAutorizacionData
+                {
+                    SolicitudId = s.Id,
+                    Evento = s.Evento,
+                    Asunto = s.Asunto,
+                    Sala = s.Sala != null ? s.Sala.sala : null,
+                    TipoEvento = s.TipoEvento != null ? s.TipoEvento.evento : null,
+                    Comision = s.Comision != null ? s.Comision.comision : null,
+                    FechaEvento = s.FechaEvento,
+                    HoraInicio = s.HoraInicio,
+                    HoraFin = s.HoraFin,
+                    Autorizado = s.Autorizado,
+                    Estatus = s.Estatus,
+                    UsuariosNotificarServicio = s.UsuariosNotificarServicio,
+                    ResponsableEvento = s.ResponsableEvento,
+                    NumeroPersonas = s.NumeroPersonas,
+                    OtroServicioExtra = s.OtroServicioExtra
+                })
+                .FirstAsync(cancellationToken);
+
+            detalleCorreo.ServiciosSolicitados = serviciosNombresValidos;
+
+            // Enviar el correo
+            await _emailService.EnviarNotificacionAutorizacionAsync(
+                destinatariosUnicos,
+                detalleCorreo,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // No relanzamos la excepción para no fallar la operación de actualización
+            System.Diagnostics.Debug.WriteLine($"Error al enviar notificación de autorización: {ex.Message}");
+        }
+    }
+
+    private async Task<string?> ObtenerCorreoCreadorSolicitudAsync(int solicitudId, CancellationToken cancellationToken)
+    {
+        var correoCreador = await _context.Auditoria
+            .AsNoTracking()
+            .Where(a => a.SolicitudId == solicitudId)
+            .OrderBy(a => a.FechaHora)
+            .Select(a => a.Usuario)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return correoCreador;
+    }
+
+    private async Task<List<string>> ObtenerDestinatariosNotificacionAutorizacionAsync(
+        int solicitudId,
+        CancellationToken cancellationToken)
+    {
+        var correoCreador = await ObtenerCorreoCreadorSolicitudAsync(solicitudId, cancellationToken);
+        var correosServicios = await ObtenerCorreosResponsablesServiciosAsync(solicitudId, cancellationToken);
+
+        var todosDestinatarios = new List<string>();
+        if (!string.IsNullOrWhiteSpace(correoCreador))
+        {
+            todosDestinatarios.Add(correoCreador);
+        }
+
+        todosDestinatarios.AddRange(correosServicios);
+
+        return todosDestinatarios
+            .Where(x => !string.IsNullOrWhiteSpace(x) && EsEmailValido(x.Trim()))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool EsEmailValido(string email) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private async Task<List<string>> ObtenerCorreosResponsablesServiciosAsync(int solicitudId, CancellationToken cancellationToken)
+    {
+        var correosResponsables = await _context.SolicitudServicios
+            .AsNoTracking()
+            .Where(ss => ss.SolicitudId == solicitudId)
+            .SelectMany(ss => ss.Servicio.catServicioResponsables
+                .Where(r => !string.IsNullOrWhiteSpace(r.ResponsableEmail) && r.Estatus)
+                .Select(r => r.ResponsableEmail!))
+            .ToListAsync(cancellationToken);
+
+        return correosResponsables;
     }
 
     private async Task<ValidarConflictoDiputadosResponse> FindConflictoDiputadosAsync(

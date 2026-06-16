@@ -1,0 +1,11 @@
+Procesos detenidos.
+Iniciando API en puerto 5163...
+API iniciada. Log: /Users/juliodejesusgarciamendez/Proyectos/Proyectos .net/.run/logs/backend.log
+Iniciando Frontend en puerto 3000...
+Frontend iniciado. Log: /Users/juliodejesusgarciamendez/Proyectos/Proyectos .net/.run/logs/frontend.log
+
+Proyecto iniciado correctamente
+API:      http://localhost:5163
+Frontend: http://localhost:3000
+
+Para detener todo: ./dev.sh stop

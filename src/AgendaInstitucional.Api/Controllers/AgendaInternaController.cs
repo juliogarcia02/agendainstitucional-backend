@@ -41,8 +41,6 @@ public class AgendaInternaController : ControllerBase
             query = query.Where(x => x.Autorizado);
         }
 
-        query = query.Where(x => x.EventoInterno);
-
         if (fechaDesde.HasValue)
         {
             query = query.Where(x => x.FechaEvento!.Value >= fechaDesde.Value);

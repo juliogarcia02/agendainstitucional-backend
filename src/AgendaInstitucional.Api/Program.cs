@@ -61,6 +61,10 @@ builder.Services.AddHealthChecks();
 builder.Services.Configure<AzureGraphOptions>(
     builder.Configuration.GetSection(AzureGraphOptions.SectionName));
 
+builder.Services.Configure<EmailOptions>(
+    builder.Configuration.GetSection("Email"));
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
 builder.Services.AddHttpClient();
 
 builder.Services.AddControllers();
