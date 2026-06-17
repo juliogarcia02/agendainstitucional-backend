@@ -60,6 +60,7 @@ public class AgendaInternaController : ControllerBase
             .Select(x => new
             {
                 x.Evento,
+                Comision = x.Comision != null ? x.Comision.comision : null,
                 x.FechaEvento,
                 x.HoraInicio,
                 x.HoraFin,
@@ -75,7 +76,7 @@ public class AgendaInternaController : ControllerBase
         var response = data
             .Select(item => new AgendaInternaItemResponse
             {
-                Title = item.Evento,
+                Title = BuildEventTitle(item.Comision, item.Evento),
                 InicioEvento = ToIsoUtcString(item.FechaEvento, item.HoraInicio),
                 FinEvento = ToIsoUtcString(item.FechaEvento, item.HoraFin ?? item.HoraInicio),
                 EventoSinHora = item.SinHoraExactaInicio,
@@ -92,6 +93,16 @@ public class AgendaInternaController : ControllerBase
             .ToList();
 
         return Ok(response);
+    }
+
+    private static string BuildEventTitle(string? comision, string? evento)
+    {
+        if (!string.IsNullOrWhiteSpace(comision) && !string.IsNullOrWhiteSpace(evento))
+        {
+            return $"{comision} - {evento}";
+        }
+
+        return evento ?? string.Empty;
     }
 
     private static string ResolveInternalStatus(bool estatus, bool autorizado)

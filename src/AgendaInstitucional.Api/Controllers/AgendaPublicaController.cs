@@ -64,6 +64,7 @@ public class AgendaPublicaController : ControllerBase
             .Select(x => new
             {
                 x.Evento,
+                Comision = x.Comision != null ? x.Comision.comision : null,
                 x.FechaEvento,
                 x.HoraInicio,
                 x.HoraFin,
@@ -79,7 +80,7 @@ public class AgendaPublicaController : ControllerBase
         var response = data
             .Select(item => new AgendaPublicaItemResponse
             {
-                Title = item.Evento,
+                Title = BuildEventTitle(item.Comision, item.Evento),
                 InicioEvento = ToIsoUtcString(item.FechaEvento, item.HoraInicio),
                 FinEvento = ToIsoUtcString(item.FechaEvento, item.HoraFin ?? item.HoraInicio),
                 EventoSinHora = item.SinHoraExactaInicio,
@@ -96,6 +97,16 @@ public class AgendaPublicaController : ControllerBase
             .ToList();
 
         return Ok(response);
+    }
+
+    private static string BuildEventTitle(string? comision, string? evento)
+    {
+        if (!string.IsNullOrWhiteSpace(comision) && !string.IsNullOrWhiteSpace(evento))
+        {
+            return $"{comision} - {evento}";
+        }
+
+        return evento ?? string.Empty;
     }
 
     private static string ResolvePublicStatus(bool estatus, bool autorizado)

@@ -14,6 +14,9 @@ public static class EmailTemplates
             : "No especificados";
         var autorizado = detalle.Autorizado ? "Sí" : "No";
         var estatus = detalle.Estatus ? "Activo" : "Inactivo";
+        var displayEvent = !string.IsNullOrWhiteSpace(detalle.Comision) && !string.IsNullOrWhiteSpace(detalle.Evento)
+            ? $"{detalle.Comision} - {detalle.Evento}"
+            : detalle.Evento ?? "";
 
         return $$"""
             <!DOCTYPE html>
@@ -41,7 +44,7 @@ public static class EmailTemplates
                         
                         <div class="info-section">
                             <p><span class="label">Solicitud #:</span> {{detalle.SolicitudId}}</p>
-                            <p><span class="label">Evento:</span> {{detalle.Evento}}</p>
+                            <p><span class="label">Evento:</span> {{displayEvent}}</p>
                             <p><span class="label">Asunto:</span> {{(detalle.Asunto ?? "-")}}</p>
                             <p><span class="label">Sala:</span> {{(detalle.Sala ?? "-")}}</p>
                             <p><span class="label">Tipo evento:</span> {{(detalle.TipoEvento ?? "-")}}</p>
@@ -70,8 +73,11 @@ public static class EmailTemplates
             """;
     }
 
-    public static string ObtenerAsuntoAutorizacion(string nombreEvento)
+    public static string ObtenerAsuntoAutorizacion(string? comision, string nombreEvento)
     {
-        return $"Notificación: Autorización de solicitud - {nombreEvento}";
+        var displayEvent = !string.IsNullOrWhiteSpace(comision) && !string.IsNullOrWhiteSpace(nombreEvento)
+            ? $"{comision} - {nombreEvento}"
+            : nombreEvento;
+        return $"Notificación: Autorización de solicitud - {displayEvent}";
     }
 }

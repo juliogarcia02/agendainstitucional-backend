@@ -58,7 +58,7 @@ public class SmtpEmailService : IEmailService
                 return;
             }
 
-            var asunto = EmailTemplates.ObtenerAsuntoAutorizacion(detalle.Evento);
+            var asunto = EmailTemplates.ObtenerAsuntoAutorizacion(detalle.Comision, detalle.Evento);
             var body = EmailTemplates.GenerarBodyAutorizacion(detalle);
 
             var message = new MimeMessage();
