@@ -82,6 +82,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Evento).HasMaxLength(250);
             entity.Property(e => e.HoraFin).HasPrecision(0);
             entity.Property(e => e.HoraInicio).HasPrecision(0);
+            entity.Property(e => e.Lugar).HasMaxLength(250);
+            entity.Property(e => e.Direccion).HasMaxLength(1000);
+            entity.Property(e => e.Municipio).HasMaxLength(150);
             entity.Property(e => e.OtroServicioExtra).HasMaxLength(250);
             entity.Property(e => e.ResponsableEvento).HasMaxLength(1000);
             entity.Property(e => e.UsuariosNotificarServicio).HasMaxLength(2000);

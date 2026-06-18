@@ -28,6 +28,16 @@ public class SolicitudResponse
 
     public string? UsuariosNotificarServicio { get; set; }
 
+    public string? Lugar { get; set; }
+
+    public string? Direccion { get; set; }
+
+    public string? Municipio { get; set; }
+
+    public decimal? Latitud { get; set; }
+
+    public decimal? Longitud { get; set; }
+
     public bool SinHoraExactaInicio { get; set; }
 
     public string? DependeParaIniciar { get; set; }

@@ -37,5 +37,10 @@ public class EmailSolicitudAutorizacionData
     public string? ResponsableEvento { get; set; }
     public int? NumeroPersonas { get; set; }
     public string? OtroServicioExtra { get; set; }
+    public string? Lugar { get; set; }
+    public string? Direccion { get; set; }
+    public string? Municipio { get; set; }
+    public decimal? Latitud { get; set; }
+    public decimal? Longitud { get; set; }
     public List<string> ServiciosSolicitados { get; set; } = [];
 }

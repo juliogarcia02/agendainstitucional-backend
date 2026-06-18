@@ -5,7 +5,9 @@ using AgendaInstitucional.Infrastructure.Data;
 using AgendaInstitucional.Infrastructure.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using System.Security.Claims;
 using System.Linq.Expressions;
 
@@ -120,6 +122,13 @@ public class SolicitudesController : ControllerBase
             .Select(ResponseProjection)
             .ToListAsync(cancellationToken);
 
+        foreach (var item in solicitudes)
+        {
+            var coords = await GetUbicacionCoordinatesBySolicitudIdAsync(item.Id, cancellationToken);
+            item.Latitud = coords.Latitud;
+            item.Longitud = coords.Longitud;
+        }
+
         return Ok(new PagedResponse<SolicitudResponse>
         {
             Items = solicitudes,
@@ -142,6 +151,10 @@ public class SolicitudesController : ControllerBase
         {
             return NotFound();
         }
+
+        var coords = await GetUbicacionCoordinatesBySolicitudIdAsync(id, cancellationToken);
+        solicitud.Latitud = coords.Latitud;
+        solicitud.Longitud = coords.Longitud;
 
         return Ok(solicitud);
     }
@@ -226,6 +239,12 @@ public class SolicitudesController : ControllerBase
         _context.Solicitudes.Add(solicitud);
         await _context.SaveChangesAsync(cancellationToken);
 
+        await UpdateUbicacionGeograficaAsync(
+            solicitud.Id,
+            request.Latitud,
+            request.Longitud,
+            cancellationToken);
+
         await ReplaceSolicitudServicios(solicitud.Id, servicioIds, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -287,6 +306,13 @@ public class SolicitudesController : ControllerBase
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         MapRequest(request, solicitud);
+
+        await UpdateUbicacionGeograficaAsync(
+            solicitud.Id,
+            request.Latitud,
+            request.Longitud,
+            cancellationToken);
+
         solicitud.UpdatedAt = DateTime.UtcNow;
 
         await ReplaceSolicitudServicios(id, servicioIds, cancellationToken);
@@ -330,6 +356,9 @@ public class SolicitudesController : ControllerBase
         solicitud.ComisionId = request.ComisionId;
         solicitud.OtroServicioExtra = request.OtroServicioExtra;
         solicitud.UsuariosNotificarServicio = request.UsuariosNotificarServicio;
+        solicitud.Lugar = request.Lugar;
+        solicitud.Direccion = request.Direccion;
+        solicitud.Municipio = request.Municipio;
         solicitud.SinHoraExactaInicio = request.SinHoraExactaInicio;
         solicitud.DependeParaIniciar = request.DependeParaIniciar;
         solicitud.FechaEvento = request.FechaEvento;
@@ -342,11 +371,97 @@ public class SolicitudesController : ControllerBase
 
     private async Task<SolicitudResponse> GetSolicitudResponseById(int id, CancellationToken cancellationToken)
     {
-        return await _context.Solicitudes
+        var response = await _context.Solicitudes
             .AsNoTracking()
             .Where(x => x.Id == id)
             .Select(ResponseProjection)
             .FirstAsync(cancellationToken);
+
+        var coords = await GetUbicacionCoordinatesBySolicitudIdAsync(id, cancellationToken);
+        response.Latitud = coords.Latitud;
+        response.Longitud = coords.Longitud;
+
+        return response;
+    }
+
+    private async Task UpdateUbicacionGeograficaAsync(
+        int solicitudId,
+        decimal? latitud,
+        decimal? longitud,
+        CancellationToken cancellationToken)
+    {
+        const string sql = @"
+UPDATE dbo.Solicitudes
+SET Ubicacion =
+    CASE
+        WHEN @latitud IS NULL OR @longitud IS NULL THEN NULL
+        ELSE geography::Point(CONVERT(float, @latitud), CONVERT(float, @longitud), 4326)
+    END
+WHERE Id = @id;";
+
+        var idParam = new SqlParameter("@id", SqlDbType.Int) { Value = solicitudId };
+        var latParam = new SqlParameter("@latitud", SqlDbType.Decimal)
+        {
+            Precision = 10,
+            Scale = 7,
+            Value = latitud.HasValue ? latitud.Value : DBNull.Value
+        };
+        var longParam = new SqlParameter("@longitud", SqlDbType.Decimal)
+        {
+            Precision = 10,
+            Scale = 7,
+            Value = longitud.HasValue ? longitud.Value : DBNull.Value
+        };
+
+        await _context.Database.ExecuteSqlRawAsync(
+            sql,
+            [idParam, latParam, longParam],
+            cancellationToken);
+    }
+
+    private async Task<(decimal? Latitud, decimal? Longitud)> GetUbicacionCoordinatesBySolicitudIdAsync(
+        int solicitudId,
+        CancellationToken cancellationToken)
+    {
+        const string sql = @"
+SELECT
+    CAST(Ubicacion.Lat AS decimal(10,7)) AS Latitud,
+    CAST(Ubicacion.Long AS decimal(10,7)) AS Longitud
+FROM dbo.Solicitudes
+WHERE Id = @id;";
+
+        var connection = _context.Database.GetDbConnection();
+        var openedHere = connection.State != ConnectionState.Open;
+
+        if (openedHere)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.Int) { Value = solicitudId });
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return (null, null);
+            }
+
+            decimal? latitud = reader.IsDBNull(0) ? null : reader.GetDecimal(0);
+            decimal? longitud = reader.IsDBNull(1) ? null : reader.GetDecimal(1);
+
+            return (latitud, longitud);
+        }
+        finally
+        {
+            if (openedHere)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 
     private async Task<List<int>> GetMissingServicioIds(List<int> servicioIds, CancellationToken cancellationToken)
@@ -443,9 +558,16 @@ public class SolicitudesController : ControllerBase
                     UsuariosNotificarServicio = s.UsuariosNotificarServicio,
                     ResponsableEvento = s.ResponsableEvento,
                     NumeroPersonas = s.NumeroPersonas,
-                    OtroServicioExtra = s.OtroServicioExtra
+                    OtroServicioExtra = s.OtroServicioExtra,
+                    Lugar = s.Lugar,
+                    Direccion = s.Direccion,
+                    Municipio = s.Municipio
                 })
                 .FirstAsync(cancellationToken);
+
+            var coords = await GetUbicacionCoordinatesBySolicitudIdAsync(solicitud.Id, cancellationToken);
+            detalleCorreo.Latitud = coords.Latitud;
+            detalleCorreo.Longitud = coords.Longitud;
 
             detalleCorreo.ServiciosSolicitados = serviciosNombresValidos;
 
@@ -618,6 +740,9 @@ public class SolicitudesController : ControllerBase
         Comision = solicitud.Comision != null ? solicitud.Comision.comision : null,
         OtroServicioExtra = solicitud.OtroServicioExtra,
         UsuariosNotificarServicio = solicitud.UsuariosNotificarServicio,
+        Lugar = solicitud.Lugar,
+        Direccion = solicitud.Direccion,
+        Municipio = solicitud.Municipio,
         SinHoraExactaInicio = solicitud.SinHoraExactaInicio,
         DependeParaIniciar = solicitud.DependeParaIniciar,
         FechaEvento = solicitud.FechaEvento,
