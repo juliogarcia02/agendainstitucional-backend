@@ -85,6 +85,12 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Lugar).HasMaxLength(250);
             entity.Property(e => e.Direccion).HasMaxLength(1000);
             entity.Property(e => e.Municipio).HasMaxLength(150);
+            entity.Property(e => e.OfficeEventId).HasMaxLength(500);
+            entity.Property(e => e.OfficeICalUId).HasMaxLength(500);
+            entity.Property(e => e.OfficeWebLink).HasMaxLength(1000);
+            entity.Property(e => e.OfficeOrganizerEmail).HasMaxLength(256);
+            entity.Property(e => e.OfficeSyncStatus).HasMaxLength(50);
+            entity.Property(e => e.OfficeSyncNotes).HasMaxLength(2000);
             entity.Property(e => e.OtroServicioExtra).HasMaxLength(250);
             entity.Property(e => e.ResponsableEvento).HasMaxLength(1000);
             entity.Property(e => e.UsuariosNotificarServicio).HasMaxLength(2000);

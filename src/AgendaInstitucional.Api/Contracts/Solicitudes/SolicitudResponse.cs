@@ -57,4 +57,18 @@ public class SolicitudResponse
     public DateTime CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    public string? OfficeEventId { get; set; }
+
+    public string? OfficeICalUId { get; set; }
+
+    public string? OfficeWebLink { get; set; }
+
+    public string? OfficeOrganizerEmail { get; set; }
+
+    public DateTime? OfficeSyncAt { get; set; }
+
+    public string? OfficeSyncStatus { get; set; }
+
+    public string? OfficeSyncNotes { get; set; }
 }

@@ -2,6 +2,7 @@ using AgendaInstitucional.Infrastructure.Data;
 using AgendaInstitucional.Api.Auditing;
 using AgendaInstitucional.Api.Options;
 using AgendaInstitucional.Api.Services;
+using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,18 @@ using Microsoft.AspNetCore.Authorization;
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = ResolveConnectionString(builder.Configuration, builder.Environment);
+var accessTokenHours = builder.Configuration.GetValue<double?>("Auth:BearerTokens:AccessTokenHours") ?? 8;
+var refreshTokenDays = builder.Configuration.GetValue<double?>("Auth:BearerTokens:RefreshTokenDays") ?? 7;
+
+if (accessTokenHours <= 0)
+{
+    accessTokenHours = 8;
+}
+
+if (refreshTokenDays <= 0)
+{
+    refreshTokenDays = 7;
+}
 
 // Add services to the container.
 builder.Services.AddHttpContextAccessor();
@@ -35,6 +48,12 @@ builder.Services.AddIdentityApiEndpoints<IdentityUser>(options =>
 })
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<AppIdentityDbContext>();
+
+builder.Services.Configure<BearerTokenOptions>(IdentityConstants.BearerScheme, options =>
+{
+    options.BearerTokenExpiration = TimeSpan.FromHours(accessTokenHours);
+    options.RefreshTokenExpiration = TimeSpan.FromDays(refreshTokenDays);
+});
 
 // CONFIGURACIÓN CORS
 builder.Services.AddCors(options =>
@@ -61,9 +80,13 @@ builder.Services.AddHealthChecks();
 builder.Services.Configure<AzureGraphOptions>(
     builder.Configuration.GetSection(AzureGraphOptions.SectionName));
 
+builder.Services.Configure<OfficeCalendarOptions>(
+    builder.Configuration.GetSection(OfficeCalendarOptions.SectionName));
+
 builder.Services.Configure<EmailOptions>(
     builder.Configuration.GetSection("Email"));
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+builder.Services.AddScoped<IOfficeCalendarService, OfficeCalendarService>();
 
 builder.Services.AddHttpClient();
 

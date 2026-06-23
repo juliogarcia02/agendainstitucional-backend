@@ -20,11 +20,16 @@ public class SolicitudesController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IEmailService _emailService;
+    private readonly IOfficeCalendarService _officeCalendarService;
 
-    public SolicitudesController(AppDbContext context, IEmailService emailService)
+    public SolicitudesController(
+        AppDbContext context,
+        IEmailService emailService,
+        IOfficeCalendarService officeCalendarService)
     {
         _context = context;
         _emailService = emailService;
+        _officeCalendarService = officeCalendarService;
     }
 
     [HttpGet]
@@ -322,6 +327,7 @@ public class SolicitudesController : ControllerBase
         // Enviar correo si se acaba de autorizar
         if (!eraAutorizado && request.Autorizado)
         {
+            await SyncOfficeCalendarAndPersistAsync(solicitud.Id, cancellationToken);
             await EnviarNotificacionAutorizacion(solicitud, cancellationToken);
         }
 
@@ -343,6 +349,102 @@ public class SolicitudesController : ControllerBase
         await _context.SaveChangesAsync(cancellationToken);
 
         return NoContent();
+    }
+
+    [HttpPost("{id:int}/office-calendar/sync")]
+    public async Task<ActionResult<object>> SyncOfficeCalendar(int id, CancellationToken cancellationToken)
+    {
+        var syncData = await SyncOfficeCalendarAndPersistAsync(id, cancellationToken);
+        var solicitud = syncData.Solicitud;
+        var result = syncData.Result;
+
+        if (solicitud is null || result is null)
+        {
+            return NotFound(new { message = "Solicitud no encontrada." });
+        }
+
+        if (!result.Success)
+        {
+            return BadRequest(new
+            {
+                solicitudId = solicitud.Id,
+                synced = false,
+                result.Action,
+                result.Message,
+                solicitud.OfficeEventId,
+                solicitud.OfficeWebLink,
+                solicitud.OfficeSyncAt,
+                solicitud.OfficeSyncStatus,
+                solicitud.OfficeSyncNotes
+            });
+        }
+
+        return Ok(new
+        {
+            solicitudId = solicitud.Id,
+            synced = true,
+            result.Action,
+            result.Message,
+            solicitud.OfficeEventId,
+            solicitud.OfficeICalUId,
+            solicitud.OfficeWebLink,
+            solicitud.OfficeOrganizerEmail,
+            solicitud.OfficeSyncAt,
+            solicitud.OfficeSyncStatus,
+            solicitud.OfficeSyncNotes
+        });
+    }
+
+    private async Task<(Solicitude? Solicitud, OfficeCalendarSyncResult? Result)> SyncOfficeCalendarAndPersistAsync(
+        int solicitudId,
+        CancellationToken cancellationToken)
+    {
+        var solicitud = await _context.Solicitudes
+            .Include(x => x.Comision)
+            .Include(x => x.Sala)
+            .Include(x => x.TipoEvento)
+            .FirstOrDefaultAsync(x => x.Id == solicitudId, cancellationToken);
+
+        if (solicitud is null)
+        {
+            return (null, null);
+        }
+
+        var payload = new OfficeCalendarSolicitudData
+        {
+            SolicitudId = solicitud.Id,
+            Evento = solicitud.Evento,
+            Asunto = solicitud.Asunto,
+            Comision = solicitud.Comision?.comision,
+            Sala = solicitud.Sala?.sala,
+            TipoEvento = solicitud.TipoEvento?.evento,
+            Lugar = solicitud.Lugar,
+            Direccion = solicitud.Direccion,
+            Municipio = solicitud.Municipio,
+            FechaEvento = solicitud.FechaEvento,
+            HoraInicio = solicitud.HoraInicio,
+            HoraFin = solicitud.HoraFin,
+            OfficeEventId = solicitud.OfficeEventId
+        };
+
+        var result = await _officeCalendarService.SyncSolicitudAsync(payload, cancellationToken);
+
+        solicitud.OfficeSyncAt = DateTime.UtcNow;
+        solicitud.OfficeSyncStatus = result.Success ? "ok" : "error";
+        solicitud.OfficeSyncNotes = result.Message;
+
+        if (result.Success)
+        {
+            solicitud.OfficeEventId = result.EventId ?? solicitud.OfficeEventId;
+            solicitud.OfficeICalUId = result.ICalUId ?? solicitud.OfficeICalUId;
+            solicitud.OfficeWebLink = result.WebLink ?? solicitud.OfficeWebLink;
+            solicitud.OfficeOrganizerEmail = result.OrganizerEmail ?? solicitud.OfficeOrganizerEmail;
+        }
+
+        solicitud.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return (solicitud, result);
     }
 
     private static void MapRequest(SolicitudRequest request, Solicitude solicitud)
@@ -752,6 +854,13 @@ WHERE Id = @id;";
         EventoInterno = solicitud.EventoInterno,
         Estatus = solicitud.Estatus,
         CreatedAt = solicitud.CreatedAt,
-        UpdatedAt = solicitud.UpdatedAt
+        UpdatedAt = solicitud.UpdatedAt,
+        OfficeEventId = solicitud.OfficeEventId,
+        OfficeICalUId = solicitud.OfficeICalUId,
+        OfficeWebLink = solicitud.OfficeWebLink,
+        OfficeOrganizerEmail = solicitud.OfficeOrganizerEmail,
+        OfficeSyncAt = solicitud.OfficeSyncAt,
+        OfficeSyncStatus = solicitud.OfficeSyncStatus,
+        OfficeSyncNotes = solicitud.OfficeSyncNotes
     };
 }
