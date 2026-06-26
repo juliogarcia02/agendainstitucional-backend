@@ -345,8 +345,38 @@ public class SolicitudesController : ControllerBase
             return NotFound();
         }
 
-        _context.Solicitudes.Remove(solicitud);
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(solicitud.OfficeEventId))
+        {
+            var deleteResult = await _officeCalendarService.DeleteEventAsync(solicitud.OfficeEventId, cancellationToken);
+            if (!deleteResult.Success)
+            {
+                return BadRequest(new
+                {
+                    message = "No fue posible eliminar el evento en Outlook. La solicitud no se eliminó.",
+                    action = deleteResult.Action,
+                    detail = deleteResult.Message,
+                    solicitudId = solicitud.Id,
+                    solicitud.OfficeEventId
+                });
+            }
+
+            solicitud.OfficeSyncAt = DateTime.UtcNow;
+            solicitud.OfficeSyncStatus = "deleted";
+            solicitud.OfficeSyncNotes = deleteResult.Message;
+            solicitud.OfficeEventId = null;
+            solicitud.OfficeICalUId = null;
+            solicitud.OfficeWebLink = null;
+        }
+
+        solicitud.Autorizado = false;
+        solicitud.Estatus = false;
+        solicitud.Eliminado = true;
+        solicitud.UpdatedAt = DateTime.UtcNow;
+
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return NoContent();
     }

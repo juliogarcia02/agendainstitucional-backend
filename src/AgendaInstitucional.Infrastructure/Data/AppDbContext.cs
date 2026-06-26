@@ -78,6 +78,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Asunto).HasMaxLength(2000);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.DependeParaIniciar).HasMaxLength(500);
+            entity.Property(e => e.Eliminado).HasDefaultValue(false);
             entity.Property(e => e.Estatus).HasDefaultValue(true);
             entity.Property(e => e.Evento).HasMaxLength(250);
             entity.Property(e => e.HoraFin).HasPrecision(0);
@@ -94,6 +95,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.OtroServicioExtra).HasMaxLength(250);
             entity.Property(e => e.ResponsableEvento).HasMaxLength(1000);
             entity.Property(e => e.UsuariosNotificarServicio).HasMaxLength(2000);
+            entity.HasQueryFilter(e => !e.Eliminado);
 
             entity.HasOne(d => d.Comision).WithMany(p => p.Solicitudes)
                 .HasForeignKey(d => d.ComisionId)

@@ -61,6 +61,8 @@ public partial class Solicitude
 
     public bool Estatus { get; set; }
 
+    public bool Eliminado { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }

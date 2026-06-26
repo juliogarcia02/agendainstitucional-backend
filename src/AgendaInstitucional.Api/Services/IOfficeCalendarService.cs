@@ -5,6 +5,10 @@ public interface IOfficeCalendarService
     Task<OfficeCalendarSyncResult> SyncSolicitudAsync(
         OfficeCalendarSolicitudData solicitud,
         CancellationToken cancellationToken = default);
+
+    Task<OfficeCalendarSyncResult> DeleteEventAsync(
+        string officeEventId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class OfficeCalendarSolicitudData

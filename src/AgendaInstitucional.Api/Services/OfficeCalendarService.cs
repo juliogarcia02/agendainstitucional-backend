@@ -137,6 +137,117 @@ public sealed class OfficeCalendarService : IOfficeCalendarService
         }
     }
 
+    public async Task<OfficeCalendarSyncResult> DeleteEventAsync(
+        string officeEventId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(officeEventId))
+        {
+            return new OfficeCalendarSyncResult
+            {
+                Success = true,
+                Message = "No hay evento de Outlook para eliminar.",
+                Action = "deleted-noop"
+            };
+        }
+
+        if (!_calendarOptions.Enabled)
+        {
+            return new OfficeCalendarSyncResult
+            {
+                Success = false,
+                Message = "Office Calendar sync está deshabilitado en configuración.",
+                Action = "disabled"
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(_calendarOptions.OrganizerEmail))
+        {
+            return new OfficeCalendarSyncResult
+            {
+                Success = false,
+                Message = "No se configuró OfficeCalendar:OrganizerEmail.",
+                Action = "invalid-config"
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(_azureOptions.TenantId) ||
+            string.IsNullOrWhiteSpace(_azureOptions.ClientId) ||
+            string.IsNullOrWhiteSpace(_azureOptions.ClientSecret))
+        {
+            return new OfficeCalendarSyncResult
+            {
+                Success = false,
+                Message = "AzureGraph no está configurado correctamente para Microsoft Graph.",
+                Action = "invalid-config"
+            };
+        }
+
+        try
+        {
+            var token = await AcquireAppTokenAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return new OfficeCalendarSyncResult
+                {
+                    Success = false,
+                    Message = "No se pudo obtener token de Microsoft Graph.",
+                    Action = "auth-error"
+                };
+            }
+
+            var organizerEmail = _calendarOptions.OrganizerEmail.Trim();
+            var endpoint =
+                $"{_calendarOptions.GraphBaseUrl.TrimEnd('/')}/users/{Uri.EscapeDataString(organizerEmail)}/events/{Uri.EscapeDataString(officeEventId)}";
+
+            var http = _httpClientFactory.CreateClient();
+            using var request = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            using var response = await http.SendAsync(request, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return new OfficeCalendarSyncResult
+                {
+                    Success = true,
+                    Message = "El evento ya no existe en Outlook.",
+                    Action = "deleted-not-found",
+                    OrganizerEmail = organizerEmail
+                };
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new OfficeCalendarSyncResult
+                {
+                    Success = false,
+                    Message = $"Graph delete error {(int)response.StatusCode}: {body}",
+                    Action = "delete-error"
+                };
+            }
+
+            return new OfficeCalendarSyncResult
+            {
+                Success = true,
+                Message = "Evento eliminado de Outlook Calendar.",
+                Action = "deleted",
+                OrganizerEmail = organizerEmail
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error eliminando evento {OfficeEventId} en Office Calendar.", officeEventId);
+            return new OfficeCalendarSyncResult
+            {
+                Success = false,
+                Message = ex.Message,
+                Action = "exception"
+            };
+        }
+    }
+
     private async Task<string?> AcquireAppTokenAsync(CancellationToken cancellationToken)
     {
         var tokenUrl = $"https://login.microsoftonline.com/{_azureOptions.TenantId}/oauth2/v2.0/token";
